@@ -1,33 +1,43 @@
-from uuid import uuid4
-from typing import Optional, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.src.models.entities import Base
-from sqlalchemy import insert
+from sqlalchemy import select, and_
+from typing import List, Tuple
+from datetime import datetime
 
-async def create_audit_log(
+from backend.src.models.audit import AuditLog
+from backend.src.schemas.audit import AuditLog as SchemaAuditLog, AuditLogFilter
+
+async def list_audit_logs(
     db: AsyncSession,
-    event_type: str,
-    entity_type: str,
-    entity_id: str,
-    user_id: Optional[str],
-    action: str,
-    changes: Optional[Dict[str, Any]] = None,
-    old_values: Optional[Dict[str, Any]] = None,
-    new_values: Optional[Dict[str, Any]] = None
-) -> None:
-    audit_log_id = uuid4()
+    filters: AuditLogFilter,
+    page: int = 1,
+    page_size: int = 20
+) -> Tuple[List[SchemaAuditLog], int]:
+    query = select(AuditLog)
+    conditions = []
 
-    query = insert(Base.metadata.tables['audit_logs']).values(
-        id=audit_log_id,
-        event_type=event_type,
-        entity_type=entity_type,
-        entity_id=entity_id,
-        user_id=user_id,
-        action=action,
-        changes=changes,
-        old_values=old_values,
-        new_values=new_values
-    )
+    if filters.user_id:
+        conditions.append(AuditLog.user_id == filters.user_id)
+    if filters.action:
+        conditions.append(AuditLog.action == filters.action)
+    if filters.resource_type:
+        conditions.append(AuditLog.resource_type == filters.resource_type)
+    if filters.resource_id:
+        conditions.append(AuditLog.resource_id == filters.resource_id)
+    if filters.start_date:
+        conditions.append(AuditLog.created_at >= filters.start_date)
+    if filters.end_date:
+        conditions.append(AuditLog.created_at <= filters.end_date)
 
-    await db.execute(query)
-    # Commit is caller responsibility
+    if conditions:
+        query = query.filter(and_(*conditions))
+
+    total_result = await db.execute(query)
+    total = total_result.scalars().count()
+
+    offset = (page - 1) * page_size
+    query = query.offset(offset).limit(page_size)
+
+    result = await db.execute(query)
+    audit_logs = result.scalars().all()
+
+    return ([SchemaAuditLog.from_orm(log) for log in audit_logs], total)

@@ -1,27 +1,26 @@
-from fastapi import Depends, HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
-from fastapi.security import HTTPBearer
-from backend.src.core.security import decode_access_token
-from backend.src.services.user_service import get_user_by_id
+from typing import Optional
+from fastapi import Depends, HTTPException, Query
+from fastapi.security import OAuth2PasswordRequestForm
+from backend.src.core.security import get_current_user, require_roles
+from backend.src.db.database import get_db
+from sqlalchemy.ext.asyncio import AsyncSession
 
-security = HTTPBearer()
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+async def get_db_session() -> AsyncSession:
+    async for session in get_db():
+        yield session
+
+
+async def current_user(user=Depends(get_current_user)):
+    return user
+
+
+def require_roles_dependency(*roles: str):
+    return require_roles(*roles)
+
+
+def get_pagination(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100)
 ):
-    token = credentials.credentials
-    user_id = decode_access_token(token)
-    if user_id is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    user = await get_user_by_id(user_id)
-    if not user or not user.is_active:
-        raise HTTPException(status_code=403, detail="User inactive or not found")
-    return user.id.hex
-
-async def require_role(roles: list):
-    async def role_checker(current_user_id: str = Depends(get_current_user)):
-        user = await get_user_by_id(current_user_id)
-        if user.role not in roles:
-            raise HTTPException(status_code=403, detail="Forbidden")
-        return current_user_id
-    return role_checker
+    return page, page_size

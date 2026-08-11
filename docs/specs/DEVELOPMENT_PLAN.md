@@ -3,285 +3,219 @@
 ## 1. ARCHITECTURE OVERVIEW
 
 ### System Context
-CENCO NEWS es una plataforma de inteligencia de noticias que automatiza el ciclo diario de monitoreo, clasificación, scoring, y distribución de noticias. El sistema ingiere contenido de múltiples fuentes (RSS, API, Web, PDF, OCR, Audio), procesa mediante IA para generar síntesis y scoring con explicabilidad, y presenta un flujo editorial con aprobación humana obligatoria.
+CENCO NEWS es una plataforma de inteligencia de noticias para Cencosud que automatiza la captura, clasificación, puntuación, síntesis, aprobación y distribución de noticias desde múltiples fuentes (RSS, Web Scraping, News APIs). El sistema utiliza FastAPI como API Gateway/backend unificado, PostgreSQL como base de datos, Redis para caché y Celery para tareas asíncronas.
 
 ### Technology Stack
-- **Backend**: Python 3.11+ / FastAPI 0.104+ / SQLAlchemy 2.0+ / Pydantic 2.5+
-- **Database**: PostgreSQL 15+ (primary) + Qdrant (vector search)
-- **Cache**: Redis 7.0+ (sessions, rate limiting, caching)
-- **Message Queue**: RabbitMQ 3.12+ / Celery 5.3+
-- **Storage**: S3-compatible (reports, attachments)
-- **Frontend**: TypeScript 5.3+ / React 18.2+ / Vite 5.0+ / TailwindCSS 3.4+
-- **Infrastructure**: Kubernetes / Terraform / Docker
-- **Observability**: Prometheus / Grafana / Loki
+- **Backend:** Python 3.11+, FastAPI 0.109.0, SQLAlchemy 2.0.25, Alembic
+- **Frontend:** TypeScript 5.3+, React 18.2.0, Vite 5.1.0, Tailwind CSS 3.4.1, React Router 6
+- **Database:** PostgreSQL 15+, Redis 7.2+
+- **Async Tasks:** Celery 5.3.6
+- **PDF Generation:** WeasyPrint 60.2
+- **Containerization:** Docker, Docker Compose
 
 ### Folder Structure
 ```
 cenco-news/
+├── frontend/                    → React SPA
+│   ├── src/
+│   │   ├── components/ui/       → Base components
+│   │   ├── pages/               → Page components
+│   │   ├── hooks/               → Custom hooks
+│   │   ├── services/           → API services
+│   │   ├── stores/              → Zustand stores
+│   │   └── styles/              → Design tokens
+│   └── Dockerfile
 ├── backend/
 │   ├── src/
-│   │   ├── api/              # FastAPI routers
-│   │   ├── services/         # Business logic
-│   │   ├── models/           # SQLAlchemy models
-│   │   ├── schemas/          # Pydantic schemas
-│   │   ├── core/             # Config, security, logging
-│   │   └── workers/          # Celery tasks
-│   ├── alembic/              # Database migrations
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── pages/            # Page components
-│   │   ├── components/       # UI components
-│   │   ├── hooks/            # Custom hooks
-│   │   ├── services/         # API clients
-│   │   ├── stores/           # Zustand stores
-│   │   └── styles/           # Tokens, globals
-│   └── package.json
+│   │   ├── api/                → API routes
+│   │   ├── models/              → SQLAlchemy models
+│   │   ├── schemas/             → Pydantic schemas
+│   │   ├── services/            → Business logic
+│   │   ├── tasks/               → Celery tasks
+│   │   ├── core/                → Config, security
+│   │   └── main.py              → FastAPI app
+│   ├── alembic/                 → DB migrations
+│   └── Dockerfile
 ├── shared/
-│   ├── types/                # Shared TypeScript types
-│   └── python/               # Shared Python modules
-├── infra/
-│   ├── terraform/            # IaC
-│   └── k8s/                  # K8s manifests
-└── docker-compose.yml
+│   └── types.ts                → TypeScript shared types
+├── docker-compose.yml
+├── run.sh
+└── .env.example
 ```
 
-### API Endpoints Summary
-| Domain | Methods | Endpoints |
-|--------|---------|-----------|
-| Auth | POST | /api/v1/auth/login, /api/v1/auth/logout, /api/v1/auth/refresh |
-| Sources | CRUD | /api/v1/sources/* |
-| Articles | CRUD+Search | /api/v1/articles/*, /api/v1/articles/search |
-| Scoring | GET/PUT | /api/v1/scoring/config |
-| Prompts | CRUD | /api/v1/prompts/* |
-| Reports | CRUD+Generate | /api/v1/reports/*, /api/v1/reports/generate |
-| Approval | POST | /api/v1/approval/* |
-| Voice | POST | /api/v1/voice/query |
-| Admin | CRUD | /api/v1/admin/* |
+### Database Schema
+- **users** - User accounts with roles (admin, manager, news_operator, viewer)
+- **news_sources** - RSS, web scraping, and API source configurations
+- **news_items** - Collected news with scoring and status
+- **scoring_dimensions** - Configurable scoring weights
+- **reports** - Generated reports with templates
+- **report_templates** - Report template definitions
+- **notification_recipients** - Email, Slack, webhook recipients
+- **channel_configs** - Notification channel settings
+- **prompts** - AI prompt templates
+- **audit_logs** - User action audit trail
+
+### API Endpoints (per SPEC.md §3)
+- `POST/GET /api/v1/auth/login` - Authentication
+- `GET/POST /api/v1/news` - News CRUD and search
+- `GET /api/v1/news/{id}` - News detail
+- `PATCH /api/v1/news/{id}/status` - Update news status
+- `POST /api/v1/news/{id}/rate` - Rate news
+- `GET/POST /api/v1/sources` - News sources management
+- `GET/POST /api/v1/scoring/dimensions` - Scoring dimensions
+- `POST /api/v1/scoring/calculate/{news_id}` - Calculate news score
+- `GET/POST /api/v1/reports` - Report management
+- `GET/POST /api/v1/reports/{id}/approve` - Approve reports
+- `POST /api/v1/reports/{id}/send` - Send reports
+- `GET /api/v1/reports/templates` - Report templates
+- `GET/POST /api/v1/notifications/recipients` - Notification recipients
+- `GET/POST /api/v1/notifications/channels` - Channel configs
+- `GET/POST /api/v1/prompts` - Prompt templates
+- `GET /api/v1/audit` - Audit logs
+- `GET /health` - Health check
+
+---
 
 ## 2. ACCEPTANCE CRITERIA
 
-1. **Portal de Noticias**: El usuario puede visualizar el Daily Pulse con noticias clasificadas y scoring visible, filtrar por país/fecha/entidad, y buscar en histórico.
-2. **Flujo Editorial**: El editor puede aprobar/rechazar noticias con calificación 1-5 estrellas y retroalimentación; todas las acciones quedan auditadas.
-3. **Generación de Reportes**: El sistema genera reportes Daily Pulse en HTML/PDF/Word con síntesis ejecutivo y exportación funcional.
-4. **Portal de Administración**: El administrador puede configurar fuentes, reglas de scoring, prompts, y plantillas sin código.
-5. **API Completa**: Todos los endpoints REST están operativos con autenticación JWT, validación de entrada, y manejo de errores.
-6. **Infraestructura**: docker-compose levanta todos los servicios localmente con healthchecks y sin pasos manuales.
+1. **Autenticación:** Usuarios pueden iniciar sesión con email/password y recibir JWT token válido
+2. **Dashboard Daily Pulse:** Muestra resumen de noticias del día con métricas y noticias destacadas
+3. **Detalle de Noticia:** Vista completa de noticia con título, contenido, fuente, scores y calificación
+4. **Búsqueda e Histórico:** Filtrado por estado, país, idioma, fuente, rango de fechas y score
+5. **Gestión de Fuentes:** CRUD de fuentes RSS, scraping y API con configuración de polling
+6. **Scoring Configurable:** Dimensiones de scoring con pesos ajustables
+7. **Reportes:** Generación de reportes PDF/HTML con plantillas, aprobación y envío
+8. **Notificaciones:** Configuración de canales email/Slack/webhook y destinatarios
+9. **Auditoría:** Log completo de acciones de usuarios con filtros
+10. **Docker Setup:** `./run.sh` levanta todos los servicios sin pasos manuales
 
 ---
 
 ## TEAM SCOPE
 
 **Roles assigned:**
-- role-tl (technical_lead): Foundation, Infrastructure
-- role-be (backend_developer): Backend services (items 2-6)
-- role-fe (frontend_developer): Frontend pages and components (items 7-11)
-- role-db (database_engineer): DB migrations and optimization
-- role-devops (devops_support): Infrastructure configuration
+- role-tl (technical_lead) - Foundation, Backend API
+- role-fe (frontend_developer) - Frontend implementation
+- role-devops (devops_support) - Infrastructure & Deployment
 
 ---
 
 ## 3. EXECUTABLE ITEMS
 
-### ITEM 1: Foundation — shared types, models, DB schema, config
-**Goal:** Crear la base compartida del proyecto: tipos TypeScript, modelos Pydantic/SQLAlchemy, schema de base de datos, configuración de entorno, y utilidades comunes. Este item es dependencia de todos los demás.
+### ITEM 1: Foundation — shared types, schemas, DB schema, config
+
+**Goal:** Create ALL shared code that backend and frontend will import. This includes TypeScript types, Python Pydantic models, database schema, configuration, and utility functions. This item establishes the contract between frontend and backend.
 
 **Files to create:**
-- shared/types/index.ts (create) - Tipos compartidos: NewsArticle, Source, Report, User, enums (EditorialStatus, SourceType, ReportStatus, Language), API responses
-- shared/types/api.ts (create) - Contratos de API: Request/Response types para cada endpoint
-- backend/src/core/config.py (create) - Settings con pydantic-settings, validación de variables de entorno
-- backend/src/core/database.py (create) - SQLAlchemy engine, session, base declarative
-- backend/src/models/__init__.py (create) - SQLAlchemy models: User, Source, NewsArticle, Report, ScoringRule, PromptTemplate, Approval, AuditLog
-- backend/src/schemas/__init__.py (create) - Pydantic schemas: UserCreate, SourceCreate, ArticleCreate, ReportCreate, ApprovalCreate
-- backend/src/models/entities.py (create) - Todas las entidades SQLAlchemy con relaciones
-- backend/src/core/security.py (create) - JWT handling, password hashing, RBAC decorators
-- backend/src/core/logging.py (create) - Structlog configuration, trace_id middleware
-- frontend/src/styles/tokens.ts (create) - Design tokens verbatim según contrato UI/UX
-- frontend/src/types/index.ts (create) - Re-export de shared types para frontend
-- frontend/src/config/index.ts (create) - Environment variables, API base URL
-- docs/ARCHITECTURE.md (create) - Diagrama del sistema, descripción de componentes
+- shared/types.ts (create) - All TypeScript interfaces, enums, and shared types for frontend (UserRole, User, NewsSource, NewsItem, Report, NotificationRecipient, ChannelConfig, Prompt, AuditLog, API responses)
+- backend/src/core/config.py (create) - Pydantic settings for environment validation, database URL, JWT secret, Redis config, Celery config, AI service config
+- backend/src/core/security.py (create) - JWT token creation/validation, password hashing with passlib, role-based access decorators
+- backend/src/models/__init__.py (create) - SQLAlchemy model imports (User, NewsSource, NewsItem, ScoringDimension, Report, ReportTemplate, NotificationRecipient, ChannelConfig, Prompt, AuditLog)
+- backend/src/models/user.py (create) - User SQLAlchemy model with all fields from SPEC.md §2
+- backend/src/models/news.py (create) - NewsSource and NewsItem SQLAlchemy models
+- backend/src/models/scoring.py (create) - ScoringDimension SQLAlchemy model
+- backend/src/models/report.py (create) - Report and ReportTemplate SQLAlchemy models
+- backend/src/models/notification.py (create) - NotificationRecipient and ChannelConfig models
+- backend/src/models/prompt.py (create) - Prompt SQLAlchemy model
+- backend/src/models/audit.py (create) - AuditLog SQLAlchemy model
+- backend/src/db/database.py (create) - SQLAlchemy engine, session, Base, get_db dependency
+- backend/src/db/schema.sql (create) - Complete PostgreSQL schema with all tables, indexes, foreign keys, and seed data (3-5 users, sample sources, sample news items)
+- backend/alembic.ini (create) - Alembic configuration for migrations
+- backend/alembic/env.py (create) - Alembic environment setup
+- backend/alembic/versions/001_initial_schema.py (create) - Initial migration creating all tables
+- requirements.txt (create) - All Python dependencies: fastapi==0.109.0, sqlalchemy==2.0.25, pydantic==2.5.3, pydantic-settings==2.1.0, python-jose==3.3.0, passlib==1.7.4, alembic==1.13.1, psycopg2-binary==2.9.9, redis==5.0.1, celery==5.3.6, httpx==0.26.0, beautifulsoup4==4.12.3, feedparser==6.0.10, weasyprint==60.2, jinja2==3.1.3, prometheus-client==0.19.0, python-multipart==0.0.6
+- frontend/package.json (create) - All frontend dependencies: react==18.2.0, react-dom==18.2.0, react-router-dom==6.22.0, axios==1.6.7, zustand==4.5.1, @tanstack/react-query==5.17.19, react-hook-form==7.50.1, date-fns==3.3.1, recharts==2.10.4, lucide-react==0.330.0, tailwindcss==3.4.1, @headlessui/react==1.7.18
+- frontend/tsconfig.json (create) - TypeScript config with strict mode, path aliases
+- frontend/vite.config.ts (create) - Vite config with React plugin, proxy setup
+- frontend/tailwind.config.js (create) - Tailwind config with design tokens from UI contract
+- frontend/src/styles/tokens.ts (create) - Design tokens verbatim from UIUX contract (colors, typography, spacing, radii, shadows)
 
 **Dependencies:** None
+
 **Validation:** 
-```bash
-cd backend && python -c "from src.models.entities import User, Source, NewsArticle; print('Models OK')"
-cd frontend && npx tsc --noEmit src/types/index.ts && echo "Types OK"
-```
+- Run `python -c "from backend.src.models import *; from backend.src.core.config import *"` to verify Python imports work
+- Run `cd frontend && npx tsc --noEmit` to verify TypeScript compiles without errors
+
 **Role:** role-tl (technical_lead)
 
 ---
 
-### ITEM 2: Backend — Authentication & User Management
-**Goal:** Implementar el servicio de autenticación JWT con login, logout, refresh token, y gestión de perfiles. Incluye RBAC para roles: admin, editor, viewer.
+### ITEM 2: Backend API — authentication, news endpoints, sources management
+
+**Goal:** Implement FastAPI backend with all REST endpoints per SPEC.md §3. This item covers authentication, news CRUD, news sources management, and health check. All endpoints return Pydantic schemas defined in Item 1.
 
 **Files to create:**
-- backend/src/api/v1/routers/auth.py (create) - POST /login, /logout, /refresh, /me
-- backend/src/api/v1/routers/users.py (create) - CRUD /users, GET /users/me
-- backend/src/services/auth_service.py (create) - Lógica de autenticación, token management
-- backend/src/services/user_service.py (create) - CRUD usuarios, búsqueda
-- backend/src/api/deps.py (create) - Dependencies: get_current_user, require_role
-- backend/src/api/v1/router.py (create) - API v1 router aggregation
-- backend/alembic/versions/001_initial_schema.py (create) - Migration: users, roles tables
-- backend/requirements.txt (create) - Dependencies completas del backend
+- backend/src/main.py (create) - FastAPI app factory with lifespan, CORS, routes registration, middleware for logging and audit
+- backend/src/api/__init__.py (create) - API router exports
+- backend/src/api/deps.py (create) - Dependencies: get_current_user, require_roles, get_pagination
+- backend/src/api/routes/auth.py (create) - POST /api/v1/auth/login, POST /api/v1/auth/refresh
+- backend/src/api/routes/news.py (create) - GET/POST /api/v1/news, GET /api/v1/news/{id}, PATCH /api/v1/news/{id}/status, POST /api/v1/news/{id}/rate
+- backend/src/api/routes/sources.py (create) - GET/POST /api/v1/sources, GET/PUT/DELETE /api/v1/sources/{id}
+- backend/src/api/routes/health.py (create) - GET /health, GET /health/ready
+- backend/src/services/user_service.py (create) - User CRUD operations
+- backend/src/services/news_service.py (create) - News CRUD, search with filters, pagination
+- backend/src/services/source_service.py (create) - News source management
+- backend/Dockerfile (create) - Multi-stage Python build, EXPOSE 8000, CMD: uvicorn src.main:app
 
 **Dependencies:** Item 1
-**Validation:**
-```bash
-cd backend && python -c "
-from src.api.v1.routers.auth import router
-from src.services.auth_service import AuthService
-print('Auth service imports OK')
-"
-```
-**Role:** role-be (backend_developer)
+
+**Validation:** 
+- Start backend container and verify: `curl http://localhost:8000/health` returns `{"status":"ok"}`
+- Test login: `curl -X POST http://localhost:8000/api/v1/auth/login -H "Content-Type: application/json" -d '{"email":"admin@cencosud.com","password":"admin123"}'`
+
+**Role:** role-tl (technical_lead)
 
 ---
 
-### ITEM 3: Backend — News Sources Management & Collection
-**Goal:** Implementar el módulo de gestión de fuentes (CRUD) y el colector de noticias que soporta múltiples adaptadores: RSS, API REST, Web scraping, PDF, OCR, Audio (STT).
+### ITEM 3: Backend API — scoring, reports, notifications, prompts, audit
+
+**Goal:** Implement remaining backend endpoints: scoring dimensions and calculation, report generation with templates and PDF export, notification channels and recipients, prompt templates, and audit log retrieval.
 
 **Files to create:**
-- backend/src/api/v1/routers/sources.py (create) - CRUD /sources, PATCH /sources/{id}/status
-- backend/src/services/source_service.py (create) - Lógica CRUD fuentes
-- backend/src/services/collectors/__init__.py (create) - Base collector interface
-- backend/src/services/collectors/rss_collector.py (create) - RSS/Atom feed parser
-- backend/src/services/collectors/api_collector.py (create) - REST API collector
-- backend/src/services/collectors/web_collector.py (create) - Web scraper con BeautifulSoup
-- backend/src/services/collectors/pdf_collector.py (create) - PDF extraction
-- backend/src/services/collectors/audio_collector.py (create) - Audio STT collector
-- backend/src/services/collectors/collector_factory.py (create) - Factory pattern para adaptadores
-- backend/src/workers/collection_tasks.py (create) - Celery tasks para collection schedule
-- backend/alembic/versions/002_sources_table.py (create) - Migration: sources table
+- backend/src/api/routes/scoring.py (create) - GET/POST /api/v1/scoring/dimensions, POST /api/v1/scoring/calculate/{news_id}
+- backend/src/api/routes/reports.py (create) - GET/POST /api/v1/reports, GET/PUT/DELETE /api/v1/reports/{id}, POST /api/v1/reports/{id}/approve, POST /api/v1/reports/{id}/send, GET /api/v1/reports/templates
+- backend/src/api/routes/notifications.py (create) - GET/POST /api/v1/notifications/recipients, GET/PUT/DELETE /api/v1/notifications/recipients/{id}, GET/POST /api/v1/notifications/channels
+- backend/src/api/routes/prompts.py (create) - GET/POST /api/v1/prompts, GET/PUT/DELETE /api/v1/prompts/{id}
+- backend/src/api/routes/audit.py (create) - GET /api/v1/audit with filters
+- backend/src/services/scoring_service.py (create) - Scoring calculation logic with weighted dimensions
+- backend/src/services/report_service.py (create) - Report generation with Jinja2 templates, PDF export with WeasyPrint
+- backend/src/services/notification_service.py (create) - Send notifications via email/Slack/webhook
+- backend/src/services/prompt_service.py (create) - Prompt template management
+- backend/src/services/audit_service.py (create) - Audit log creation and retrieval
+- backend/src/tasks/__init__.py (create) - Celery app configuration
+- backend/src/tasks/news_tasks.py (create) - Celery tasks for news scraping and processing
 
 **Dependencies:** Item 1
-**Validation:**
-```bash
-cd backend && python -c "
-from src.services.collectors import CollectorFactory
-from src.services.collectors.rss_collector import RSSCollector
-print('Collectors OK')
-"
-```
-**Role:** role-be (backend_developer)
+
+**Validation:** 
+- Verify scoring endpoint: `curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/scoring/dimensions`
+- Verify reports list: `curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/reports`
+
+**Role:** role-tl (technical_lead)
 
 ---
 
-### ITEM 4: Backend — News Articles API & Intelligence Pipeline
-**Goal:** Implementar el API de artículos con búsqueda full-text y filtros, más el pipeline de inteligencia: normalización, entity extraction, clasificación, scoring, y síntesis con LLM.
+### ITEM 4: Frontend — foundation, auth flow, layout components
+
+**Goal:** Implement frontend foundation: design tokens, layout with sidebar navigation, auth context/store, API service layer, and login page. This establishes the visual direction per UIUX contract (blue palette, Inter font).
 
 **Files to create:**
-- backend/src/api/v1/routers/articles.py (create) - CRUD /articles, GET /articles/search, POST /articles/{id}/rate
-- backend/src/services/article_service.py (create) - Lógica CRUD y búsqueda
-- backend/src/services/intelligence/__init__.py (create) - Intelligence service module
-- backend/src/services/intelligence/normalizer.py (create) - Content normalization, language detection
-- backend/src/services/intelligence/entity_extractor.py (create) - NER para extracción de entidades
-- backend/src/services/intelligence/classifier.py (create) - Category classification
-- backend/src/services/intelligence/scoring.py (create) - Scoring algorithm con reglas configurables
-- backend/src/services/intelligence/summarizer.py (create) - LLM-based summarization
-- backend/src/services/intelligence/llm_client.py (create) - OpenAI/LLM Gateway client wrapper
-- backend/src/workers/intelligence_tasks.py (create) - Celery tasks para procesamiento async
-- backend/src/api/v1/routers/scoring.py (create) - GET/PUT /scoring/config, /scoring/rules
-- backend/src/api/v1/routers/prompts.py (create) - CRUD /prompts
-- backend/alembic/versions/003_articles_table.py (create) - Migration: articles, scoring_rules, prompts
-
-**Dependencies:** Item 1
-**Validation:**
-```bash
-cd backend && python -c "
-from src.services.intelligence import ScoringService, Summarizer
-from src.api.v1.routers.articles import router
-print('Intelligence pipeline OK')
-"
-```
-**Role:** role-be (backend_developer)
-
----
-
-### ITEM 5: Backend — Deduplication & Vector Search
-**Goal:** Implementar detección de duplicados exacta y semántica usando PostgreSQL para duplicados exactos y Qdrant para búsqueda vectorial de contenido similar entre idiomas.
-
-**Files to create:**
-- backend/src/services/deduplication/__init__.py (create) - Deduplication service module
-- backend/src/services/deduplication/exact_dedup.py (create) - Exact duplicate detection (hash, title match)
-- backend/src/services/deduplication/semantic_dedup.py (create) - Semantic duplicate with Qdrant embeddings
-- backend/src/services/deduplication/embedder.py (create) - Text embedding generation
-- backend/src/api/v1/routers/dedup.py (create) - GET /articles/{id}/duplicates, POST /dedup/check
-- backend/alembic/versions/004_dedup_tables.py (create) - Migration: duplicate_groups, embeddings index
-
-**Dependencies:** Item 1, Item 4
-**Validation:**
-```bash
-cd backend && python -c "
-from src.services.deduplication import DeduplicationService
-print('Deduplication OK')
-"
-```
-**Role:** role-be (backend_developer)
-
----
-
-### ITEM 6: Backend — Reports & Distribution
-**Goal:** Implementar generación de reportes Daily Pulse en múltiples formatos (HTML, PDF, Word) y sistema de distribución vía portal, newsletter, y exportación.
-
-**Files to create:**
-- backend/src/api/v1/routers/reports.py (create) - CRUD /reports, POST /reports/generate, GET /reports/{id}/download
-- backend/src/services/report_service.py (create) - Lógica de generación de reportes
-- backend/src/services/report_generator/__init__.py (create) - Report generator module
-- backend/src/services/report_generator/html_generator.py (create) - HTML template rendering con Jinja2
-- backend/src/services/report_generator/pdf_generator.py (create) - PDF generation con WeasyPrint
-- backend/src/services/report_generator/docx_generator.py (create) - Word doc generation con python-docx
-- backend/src/services/distribution/__init__.py (create) - Distribution service module
-- backend/src/services/distribution/portal_distributor.py (create) - Portal distribution
-- backend/src/services/distribution/newsletter_distributor.py (create) - Email newsletter
-- backend/src/services/distribution/exporter.py (create) - Document export
-- backend/src/workers/report_tasks.py (create) - Celery tasks para scheduled reports
-- backend/templates/reports/ (create) - Jinja2 templates para Daily Pulse
-- backend/alembic/versions/005_reports_table.py (create) - Migration: reports table
-
-**Dependencies:** Item 1, Item 4
-**Validation:**
-```bash
-cd backend && python -c "
-from src.services.report_generator import PDFGenerator, DOCXGenerator
-from src.services.distribution import PortalDistributor
-print('Reports OK')
-"
-```
-**Role:** role-be (backend_developer)
-
----
-
-### ITEM 7: Backend — Editorial Approval & Audit
-**Goal:** Implementar el flujo de aprobación editorial con calificaciones 1-5 estrellas, retroalimentación, y auditoría completa de todas las acciones.
-
-**Files to create:**
-- backend/src/api/v1/routers/approval.py (create) - POST /approval/submit, /approval/bulk, GET /approval/pending
-- backend/src/services/approval_service.py (create) - Lógica de flujo editorial
-- backend/src/services/audit_service.py (create) - Logging de auditoría
-- backend/src/api/v1/routers/audit.py (create) - GET /audit/logs con filtros
-- backend/src/models/entities.py (update) - Agregar Approval, AuditLog al archivo existente del Item 1
-- backend/alembic/versions/006_approval_audit.py (create) - Migration: approvals, audit_logs tables
-
-**Dependencies:** Item 1
-**Validation:**
-```bash
-cd backend && python -c "
-from src.services.approval_service import ApprovalService
-from src.services.audit_service import AuditService
-print('Approval and Audit OK')
-"
-```
-**Role:** role-be (backend_developer)
-
----
-
-### ITEM 8: Backend — Voice Interface & Admin Portal
-**Goal:** Implementar interfaz de voz (STT/TTS) para consultas de solo lectura, y el portal de administración sin código para configurar fuentes, scoring, prompts y plantillas.
-
-**Files to create:**
-- backend/src/api/v1/routers/voice.py (create) - POST /voice/query, /voice/speak
-- backend/src/services/voice/__init__.py (create) - Voice service module
-- backend/src/services/voice/stt_service.py (create) - Speech-to-text con SpeechRecognition
-- backend/src/services/voice/tts_service.py (create) - Text-to-speech con gTTS
-- backend/src/services/voice/query_processor.py (create) - Procesamiento de queries de voz
-- backend/src/api/v1/routers/admin/__init
+- frontend/src/App.tsx (create) - Root component with React Router setup
+- frontend/src/main.tsx (create) - Entry point, React Query provider setup
+- frontend/src/lib/api.ts (create) - Axios instance with interceptors for auth token
+- frontend/src/services/auth.service.ts (create) - Login API calls
+- frontend/src/services/news.service.ts (create) - News API calls
+- frontend/src/services/sources.service.ts (create) - Sources API calls
+- frontend/src/services/reports.service.ts (create) - Reports API calls
+- frontend/src/services/scoring.service.ts (create) - Scoring API calls
+- frontend/src/services/notifications.service.ts (create) - Notifications API calls
+- frontend/src/services/audit.service.ts (create) - Audit API calls
+- frontend/src/stores/auth.store.ts (create) - Zustand store for auth state (user, token, role)
+- frontend/src/components/ui/Sidebar.tsx (create) - Primary navigation sidebar with menu items per UIUX design
+- frontend/src/components/ui/Header.tsx (create) - Top bar with user profile, notifications icon
+- frontend/src/components/ui/Button.tsx (create) - Primary CTA button component with variants
+- frontend/src/components/ui/Input.tsx (create) - Text input component with label and error state
+- frontend/src/components/ui/Select.tsx (create) - Dropdown/select component
+- frontend/src/components/ui/Badge.tsx (create) - Status badge component (pending, approved, rejected)
+- frontend/src/pages/LoginPage.tsx (create) - Login page with email/password form per Figma login frame
+- frontend/Dockerfile (create) - Multi-stage Vite build, nginx serve, EXPOSE 3000

@@ -3,616 +3,651 @@ openapi: 3.1.0
 info:
   title: CENCO NEWS API
   version: 1.0.0
-  description: CENCO NEWS Project Technical Specification API
+  description: API for CENCO News application
 
 servers:
   - url: /api/v1
-    description: API v1
 
 paths:
-  /sources:
-    get:
-      operationId: list_sources
+  /auth/login:
+    post:
       tags:
-        - Sources
-      summary: List all sources
-      parameters:
-        - name: status
-          in: query
-          schema:
-            $ref: '#/components/schemas/SourceStatus'
-        - name: is_enabled
-          in: query
-          schema:
-            type: boolean
-        - name: country
-          in: query
-          schema:
-            type: string
-        - name: language
-          in: query
-          schema:
-            $ref: '#/components/schemas/Language'
-        - name: skip
-          in: query
-          schema:
-            type: integer
-            default: 0
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 100
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
       responses:
         '200':
-          description: List of sources
+          description: Successful login
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/Source'
-                  total:
+                  access_token:
+                    type: string
+                  refresh_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: bearer
+                  expires_in:
                     type: integer
+
+  /auth/refresh:
     post:
-      operationId: create_source
       tags:
-        - Sources
-      summary: Create a new source
+        - Authentication
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SourceCreate'
-      responses:
-        '201':
-          description: Source created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Source'
-
-  /sources/{source_id}:
-    get:
-      operationId: get_source
-      tags:
-        - Sources
-      summary: Get a source by ID
-      parameters:
-        - name: source_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
       responses:
         '200':
-          description: Source details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Source'
-        '404':
-          description: Source not found
-    put:
-      operationId: update_source
-      tags:
-        - Sources
-      summary: Update a source
-      parameters:
-        - name: source_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SourceUpdate'
-      responses:
-        '200':
-          description: Source updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Source'
-        '404':
-          description: Source not found
-    delete:
-      operationId: delete_source
-      tags:
-        - Sources
-      summary: Delete a source
-      parameters:
-        - name: source_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Source deleted
-        '404':
-          description: Source not found
-
-  /articles:
-    get:
-      operationId: list_articles
-      tags:
-        - Articles
-      summary: List all articles
-      parameters:
-        - name: status
-          in: query
-          schema:
-            $ref: '#/components/schemas/EditorialStatus'
-        - name: country
-          in: query
-          schema:
-            type: string
-        - name: language
-          in: query
-          schema:
-            $ref: '#/components/schemas/Language'
-        - name: min_score
-          in: query
-          schema:
-            type: number
-        - name: is_duplicate
-          in: query
-          schema:
-            type: boolean
-        - name: duplicate_group_id
-          in: query
-          schema:
-            type: string
-            format: uuid
-        - name: source_id
-          in: query
-          schema:
-            type: string
-            format: uuid
-        - name: skip
-          in: query
-          schema:
-            type: integer
-            default: 0
-        - name: limit
-          in: query
-          schema:
-            type: integer
-            default: 100
-      responses:
-        '200':
-          description: List of articles
+          description: Token refreshed
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/NewsArticleResponse'
-                  total:
+                  access_token:
+                    type: string
+                  expires_in:
                     type: integer
-    post:
-      operationId: create_article
-      tags:
-        - Articles
-      summary: Create a new article
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NewsArticleCreate'
-      responses:
-        '201':
-          description: Article created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NewsArticleResponse'
 
-  /articles/{article_id}:
+  /users:
     get:
-      operationId: get_article
       tags:
-        - Articles
-      summary: Get an article by ID
+        - Users
+      security:
+        - BearerAuth: []
       parameters:
-        - name: article_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Article details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NewsArticleResponse'
-        '404':
-          description: Article not found
-    put:
-      operationId: update_article
-      tags:
-        - Articles
-      summary: Update an article
-      parameters:
-        - name: article_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NewsArticleUpdate'
-      responses:
-        '200':
-          description: Article updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NewsArticleResponse'
-        '404':
-          description: Article not found
-    delete:
-      operationId: delete_article
-      tags:
-        - Articles
-      summary: Soft delete an article
-      parameters:
-        - name: article_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Article deleted
-        '404':
-          description: Article not found
-
-  /articles/{article_id}/approve:
-    post:
-      operationId: approve_article
-      tags:
-        - Articles
-      summary: Approve an article
-      parameters:
-        - name: article_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                editor_rating:
-                  type: integer
-                  minimum: 1
-                  maximum: 5
-                editor_feedback:
-                  type: string
-      responses:
-        '200':
-          description: Article approved
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NewsArticleResponse'
-        '404':
-          description: Article not found
-
-  /articles/{article_id}/reject:
-    post:
-      operationId: reject_article
-      tags:
-        - Articles
-      summary: Reject an article
-      parameters:
-        - name: article_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                editor_feedback:
-                  type: string
-      responses:
-        '200':
-          description: Article rejected
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NewsArticleResponse'
-        '404':
-          description: Article not found
-
-  /articles/{article_id}/score:
-    post:
-      operationId: rescore_article
-      tags:
-        - Articles
-      summary: Rescore an article
-      parameters:
-        - name: article_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Article rescored
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NewsArticleResponse'
-        '404':
-          description: Article not found
-
-  /scoring/config:
-    get:
-      operationId: get_scoring_config
-      tags:
-        - Scoring
-      summary: Get active scoring configuration
-      responses:
-        '200':
-          description: Scoring configuration
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScoringConfig'
-    put:
-      operationId: update_scoring_config
-      tags:
-        - Scoring
-      summary: Update scoring configuration
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ScoringConfigUpdate'
-      responses:
-        '200':
-          description: Scoring configuration updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScoringConfig'
-
-  /scoring/rules:
-    get:
-      operationId: list_scoring_rules
-      tags:
-        - Scoring
-      summary: List all scoring rules
-      parameters:
-        - name: dimension
+        - name: page
           in: query
           schema:
-            $ref: '#/components/schemas/ScoringDimension'
-        - name: is_enabled
+            type: integer
+            default: 1
+        - name: page_size
           in: query
           schema:
-            type: boolean
-      responses:
-        '200':
-          description: List of scoring rules
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ScoringRule'
-    post:
-      operationId: create_scoring_rule
-      tags:
-        - Scoring
-      summary: Create a scoring rule
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ScoringRuleCreate'
-      responses:
-        '201':
-          description: Scoring rule created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScoringRule'
-
-  /scoring/rules/{rule_id}:
-    put:
-      operationId: update_scoring_rule
-      tags:
-        - Scoring
-      summary: Update a scoring rule
-      parameters:
-        - name: rule_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ScoringRuleUpdate'
-      responses:
-        '200':
-          description: Scoring rule updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ScoringRule'
-        '404':
-          description: Scoring rule not found
-    delete:
-      operationId: delete_scoring_rule
-      tags:
-        - Scoring
-      summary: Delete a scoring rule
-      parameters:
-        - name: rule_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '204':
-          description: Scoring rule deleted
-        '404':
-          description: Scoring rule not found
-
-  /prompts:
-    get:
-      operationId: list_prompts
-      tags:
-        - Prompts
-      summary: List all prompt templates
-      parameters:
-        - name: template_type
+            type: integer
+            default: 20
+        - name: role
           in: query
           schema:
-            $ref: '#/components/schemas/PromptType'
+            $ref: '#/components/schemas/UserRole'
         - name: is_active
           in: query
           schema:
             type: boolean
       responses:
         '200':
-          description: List of prompt templates
+          description: List of users
           content:
             application/json:
               schema:
-                type: array
-                items:
-                      $ref: '#/components/schemas/PromptTemplate'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  page_size:
+                    type: integer
+                  pages:
+                    type: integer
     post:
-      operationId: create_prompt
       tags:
-        - Prompts
-      summary: Create a prompt template
+        - Users
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PromptTemplateCreate'
+              $ref: '#/components/schemas/UserCreate'
       responses:
         '201':
-          description: Prompt template created
+          description: User created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PromptTemplate'
+                $ref: '#/components/schemas/User'
 
-  /prompts/{prompt_id}:
+  /users/me:
     get:
-      operationId: get_prompt
       tags:
-        - Prompts
-      summary: Get a prompt template by ID
-      parameters:
-        - name: prompt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - Users
+      security:
+        - BearerAuth: []
       responses:
         '200':
-          description: Prompt template details
+          description: Current user profile
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PromptTemplate'
-        '404':
-          description: Prompt template not found
-    put:
-      operationId: update_prompt
+                $ref: '#/components/schemas/User'
+
+  /users/{user_id}:
+    parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
       tags:
-        - Prompts
-      summary: Update a prompt template
-      parameters:
-        - name: prompt_id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
+        - Users
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+    patch:
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PromptTemplateUpdate'
+              $ref: '#/components/schemas/UserUpdate'
       responses:
         '200':
-          description: Prompt template updated
+          description: User updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PromptTemplate'
-        '404':
-          description: Prompt template not found
+                $ref: '#/components/schemas/User'
     delete:
-      operationId: delete_prompt
       tags:
-        - Prompts
-      summary: Delete a prompt template
+        - Users
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: User deleted
+
+  /news-sources:
+    get:
+      tags:
+        - News Sources
+      security:
+        - BearerAuth: []
       parameters:
-        - name: prompt_id
-          in: path
-          required: true
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: source_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/NewsSourceType'
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+        - name: country
+          in: query
+          schema:
+            $ref: '#/components/schemas/Country'
+        - name: language
+          in: query
+          schema:
+            $ref: '#/components/schemas/Language'
+      responses:
+        '200':
+          description: List of news sources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NewsSource'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  page_size:
+                    type: integer
+                  pages:
+                    type: integer
+    post:
+      tags:
+        - News Sources
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewsSourceCreate'
+      responses:
+        '201':
+          description: News source created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsSource'
+
+  /news-sources/{source_id}:
+    parameters:
+      - name: source_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - News Sources
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: News source details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsSource'
+    patch:
+      tags:
+        - News Sources
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewsSourceBase'
+      responses:
+        '200':
+          description: News source updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsSource'
+    delete:
+      tags:
+        - News Sources
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: News source deleted
+
+  /news:
+    get:
+      tags:
+        - News
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/NewsStatus'
+        - name: source_id
+          in: query
           schema:
             type: string
             format: uuid
+        - name: country
+          in: query
+          schema:
+            $ref: '#/components/schemas/Country'
+        - name: language
+          in: query
+          schema:
+            $ref: '#/components/schemas/Language'
+        - name: is_direct_mention
+          in: query
+          schema:
+            type: boolean
+        - name: min_score
+          in: query
+          schema:
+            type: number
+        - name: max_score
+          in: query
+          schema:
+            type: number
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: search_query
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of news items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsItemListResponse'
+    post:
+      tags:
+        - News
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewsItemCreate'
+      responses:
+        '201':
+          description: News item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsItem'
+
+  /news/{news_id}:
+    parameters:
+      - name: news_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - News
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: News item details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsItemWithSource'
+    patch:
+      tags:
+        - News
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                content_summary:
+                  type: string
+                full_content:
+                  type: string
+                status:
+                  $ref: '#/components/schemas/NewsStatus'
+                operator_rating:
+                  type: integer
+                operator_notes:
+                  type: string
+      responses:
+        '200':
+          description: News item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsItem'
+
+  /news/{news_id}/score:
+    parameters:
+      - name: news_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - News
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Scoring result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoringResult'
+
+  /reports:
+    get:
+      tags:
+        - Reports
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ReportStatus'
+      responses:
+        '200':
+          description: List of reports
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Report'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  page_size:
+                    type: integer
+                  pages:
+                    type: integer
+    post:
+      tags:
+        - Reports
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreate'
+      responses:
+        '201':
+          description: Report created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportWithNews'
+
+  /reports/generate:
+    post:
+      tags:
+        - Reports
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: string
+                template_id:
+                  type: string
+                  format: uuid
+                country_filter:
+                  type: string
+                language_filter:
+                  type: string
+                date_from:
+                  type: string
+                  format: date-time
+                date_to:
+                  type: string
+                  format: date-time
+                min_score:
+                  type: number
+                include_news_ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '201':
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportWithNews'
+
+  /reports/{report_id}:
+    parameters:
+      - name: report_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Reports
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Report details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportWithNews'
+    patch:
+      tags:
+        - Reports
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportBase'
+      responses:
+        '200':
+          description: Report updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+    delete:
+      tags:
+        - Reports
+      security:
+        - BearerAuth: []
       responses:
         '204':
-          description: Prompt template deleted
-        '404':
-          description: Prompt template not found
+          description: Report deleted
 
-  /search:
-    get:
-      operationId: search_articles
+  /reports/{report_id}/approve:
+    parameters:
+      - name: report_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
       tags:
-        - Search
-      summary: Semantic search for articles
+        - Reports
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Report approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Report'
+
+  /reports/{report_id}/reject:
