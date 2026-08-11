@@ -1,0 +1,618 @@
+```yaml
+openapi: 3.1.0
+info:
+  title: CENCO NEWS API
+  version: 1.0.0
+  description: CENCO NEWS Project Technical Specification API
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+paths:
+  /sources:
+    get:
+      operationId: list_sources
+      tags:
+        - Sources
+      summary: List all sources
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SourceStatus'
+        - name: is_enabled
+          in: query
+          schema:
+            type: boolean
+        - name: country
+          in: query
+          schema:
+            type: string
+        - name: language
+          in: query
+          schema:
+            $ref: '#/components/schemas/Language'
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: List of sources
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Source'
+                  total:
+                    type: integer
+    post:
+      operationId: create_source
+      tags:
+        - Sources
+      summary: Create a new source
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceCreate'
+      responses:
+        '201':
+          description: Source created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+
+  /sources/{source_id}:
+    get:
+      operationId: get_source
+      tags:
+        - Sources
+      summary: Get a source by ID
+      parameters:
+        - name: source_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Source details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          description: Source not found
+    put:
+      operationId: update_source
+      tags:
+        - Sources
+      summary: Update a source
+      parameters:
+        - name: source_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceUpdate'
+      responses:
+        '200':
+          description: Source updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          description: Source not found
+    delete:
+      operationId: delete_source
+      tags:
+        - Sources
+      summary: Delete a source
+      parameters:
+        - name: source_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Source deleted
+        '404':
+          description: Source not found
+
+  /articles:
+    get:
+      operationId: list_articles
+      tags:
+        - Articles
+      summary: List all articles
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/EditorialStatus'
+        - name: country
+          in: query
+          schema:
+            type: string
+        - name: language
+          in: query
+          schema:
+            $ref: '#/components/schemas/Language'
+        - name: min_score
+          in: query
+          schema:
+            type: number
+        - name: is_duplicate
+          in: query
+          schema:
+            type: boolean
+        - name: duplicate_group_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: source_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: List of articles
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NewsArticleResponse'
+                  total:
+                    type: integer
+    post:
+      operationId: create_article
+      tags:
+        - Articles
+      summary: Create a new article
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewsArticleCreate'
+      responses:
+        '201':
+          description: Article created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsArticleResponse'
+
+  /articles/{article_id}:
+    get:
+      operationId: get_article
+      tags:
+        - Articles
+      summary: Get an article by ID
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Article details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsArticleResponse'
+        '404':
+          description: Article not found
+    put:
+      operationId: update_article
+      tags:
+        - Articles
+      summary: Update an article
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewsArticleUpdate'
+      responses:
+        '200':
+          description: Article updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsArticleResponse'
+        '404':
+          description: Article not found
+    delete:
+      operationId: delete_article
+      tags:
+        - Articles
+      summary: Soft delete an article
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Article deleted
+        '404':
+          description: Article not found
+
+  /articles/{article_id}/approve:
+    post:
+      operationId: approve_article
+      tags:
+        - Articles
+      summary: Approve an article
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                editor_rating:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                editor_feedback:
+                  type: string
+      responses:
+        '200':
+          description: Article approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsArticleResponse'
+        '404':
+          description: Article not found
+
+  /articles/{article_id}/reject:
+    post:
+      operationId: reject_article
+      tags:
+        - Articles
+      summary: Reject an article
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                editor_feedback:
+                  type: string
+      responses:
+        '200':
+          description: Article rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsArticleResponse'
+        '404':
+          description: Article not found
+
+  /articles/{article_id}/score:
+    post:
+      operationId: rescore_article
+      tags:
+        - Articles
+      summary: Rescore an article
+      parameters:
+        - name: article_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Article rescored
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NewsArticleResponse'
+        '404':
+          description: Article not found
+
+  /scoring/config:
+    get:
+      operationId: get_scoring_config
+      tags:
+        - Scoring
+      summary: Get active scoring configuration
+      responses:
+        '200':
+          description: Scoring configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoringConfig'
+    put:
+      operationId: update_scoring_config
+      tags:
+        - Scoring
+      summary: Update scoring configuration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoringConfigUpdate'
+      responses:
+        '200':
+          description: Scoring configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoringConfig'
+
+  /scoring/rules:
+    get:
+      operationId: list_scoring_rules
+      tags:
+        - Scoring
+      summary: List all scoring rules
+      parameters:
+        - name: dimension
+          in: query
+          schema:
+            $ref: '#/components/schemas/ScoringDimension'
+        - name: is_enabled
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of scoring rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScoringRule'
+    post:
+      operationId: create_scoring_rule
+      tags:
+        - Scoring
+      summary: Create a scoring rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoringRuleCreate'
+      responses:
+        '201':
+          description: Scoring rule created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoringRule'
+
+  /scoring/rules/{rule_id}:
+    put:
+      operationId: update_scoring_rule
+      tags:
+        - Scoring
+      summary: Update a scoring rule
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoringRuleUpdate'
+      responses:
+        '200':
+          description: Scoring rule updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoringRule'
+        '404':
+          description: Scoring rule not found
+    delete:
+      operationId: delete_scoring_rule
+      tags:
+        - Scoring
+      summary: Delete a scoring rule
+      parameters:
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Scoring rule deleted
+        '404':
+          description: Scoring rule not found
+
+  /prompts:
+    get:
+      operationId: list_prompts
+      tags:
+        - Prompts
+      summary: List all prompt templates
+      parameters:
+        - name: template_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/PromptType'
+        - name: is_active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of prompt templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                      $ref: '#/components/schemas/PromptTemplate'
+    post:
+      operationId: create_prompt
+      tags:
+        - Prompts
+      summary: Create a prompt template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptTemplateCreate'
+      responses:
+        '201':
+          description: Prompt template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptTemplate'
+
+  /prompts/{prompt_id}:
+    get:
+      operationId: get_prompt
+      tags:
+        - Prompts
+      summary: Get a prompt template by ID
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prompt template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptTemplate'
+        '404':
+          description: Prompt template not found
+    put:
+      operationId: update_prompt
+      tags:
+        - Prompts
+      summary: Update a prompt template
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptTemplateUpdate'
+      responses:
+        '200':
+          description: Prompt template updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptTemplate'
+        '404':
+          description: Prompt template not found
+    delete:
+      operationId: delete_prompt
+      tags:
+        - Prompts
+      summary: Delete a prompt template
+      parameters:
+        - name: prompt_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Prompt template deleted
+        '404':
+          description: Prompt template not found
+
+  /search:
+    get:
+      operationId: search_articles
+      tags:
+        - Search
+      summary: Semantic search for articles
